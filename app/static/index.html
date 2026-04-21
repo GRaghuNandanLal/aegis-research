@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aegis Research — multi-agent report generator</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --bg-soft: #121a33;
+      --panel: #161f3d;
+      --border: #243057;
+      --text: #e6ebff;
+      --muted: #8592b8;
+      --accent: #6ea8ff;
+      --good: #4ade80;
+      --warn: #fbbf24;
+      --bad: #f87171;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-size: 14px; line-height: 1.5; }
+    a { color: var(--accent); }
+    header {
+      padding: 18px 28px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 14px;
+      background: linear-gradient(90deg, #0b1020, #121a33);
+    }
+    header .logo {
+      width: 34px; height: 34px; border-radius: 8px;
+      background: conic-gradient(from 220deg, #6ea8ff, #b084ff, #6ea8ff);
+      box-shadow: 0 0 22px rgba(110,168,255,0.35);
+    }
+    header h1 { font-size: 18px; margin: 0; letter-spacing: 0.2px; }
+    header .sub { color: var(--muted); font-size: 12px; }
+    main { display: grid; grid-template-columns: 1fr 1fr; gap: 0; height: calc(100vh - 71px); }
+    @media (max-width: 960px) { main { grid-template-columns: 1fr; height: auto; } }
+    .panel { padding: 20px 28px; overflow: auto; }
+    .panel + .panel { border-left: 1px solid var(--border); }
+    .row { display: flex; gap: 10px; align-items: center; }
+    textarea {
+      width: 100%; min-height: 110px; background: var(--bg-soft); color: var(--text);
+      border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px;
+      font: inherit; resize: vertical;
+    }
+    textarea:focus { outline: none; border-color: var(--accent); }
+    button {
+      background: var(--accent); color: #0b1020; font-weight: 600;
+      border: none; border-radius: 10px; padding: 10px 16px; cursor: pointer;
+    }
+    button:disabled { opacity: 0.55; cursor: not-allowed; }
+    .examples { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+    .chip {
+      background: var(--panel); border: 1px solid var(--border);
+      color: var(--muted); padding: 4px 10px; border-radius: 999px;
+      font-size: 12px; cursor: pointer;
+    }
+    .chip:hover { color: var(--text); border-color: var(--accent); }
+    h2 { font-size: 13px; color: var(--muted); text-transform: uppercase;
+      letter-spacing: 0.12em; margin: 22px 0 10px; font-weight: 600; }
+    .events { font-family: var(--mono); font-size: 12.5px; }
+    .event {
+      padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px;
+      margin-bottom: 6px; background: var(--bg-soft);
+      display: grid; grid-template-columns: 90px 110px 1fr; gap: 10px; align-items: start;
+    }
+    .event.warn { border-left: 3px solid var(--warn); }
+    .event.error { border-left: 3px solid var(--bad); }
+    .event.blocked { border-left: 3px solid var(--bad); background: #241424; }
+    .event.final { border-left: 3px solid var(--good); }
+    .event .agent { color: var(--accent); }
+    .event .kind { color: var(--muted); }
+    .event pre { margin: 6px 0 0; white-space: pre-wrap; color: var(--muted);
+      font-size: 11.5px; }
+    .report {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+      padding: 18px 22px;
+    }
+    .report h1 { font-size: 22px; margin-top: 0; }
+    .report h2 { color: var(--text); text-transform: none; letter-spacing: 0;
+      font-size: 16px; margin-top: 18px; }
+    .report h3 { font-size: 14px; }
+    .report code { background: #0b1020; padding: 2px 6px; border-radius: 4px; }
+    .report ul, .report ol { padding-left: 24px; margin: 8px 0; }
+    .report li { margin-bottom: 4px; word-break: break-word; }
+    .report a { color: var(--accent); word-break: break-all; }
+    .report-toolbar { display: flex; gap: 8px; margin-bottom: 12px; justify-content: flex-end; }
+    button.ghost {
+      background: transparent; color: var(--muted); border: 1px solid var(--border);
+      padding: 4px 10px; border-radius: 6px; font-size: 12px; cursor: pointer;
+    }
+    button.ghost:hover { color: var(--text); border-color: var(--accent); }
+    .pill {
+      display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px;
+      background: var(--bg-soft); color: var(--muted); border: 1px solid var(--border);
+    }
+    .status-pending { color: var(--muted); }
+    .status-running { color: var(--accent); }
+    .status-completed { color: var(--good); }
+    .status-blocked, .status-error { color: var(--bad); }
+    .spinner {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: var(--accent); display: inline-block; margin-right: 6px;
+      box-shadow: 0 0 0 0 rgba(110,168,255,0.6); animation: pulse 1.2s infinite;
+    }
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(110,168,255,0.6); }
+      80% { box-shadow: 0 0 0 10px rgba(110,168,255,0); }
+      100% { box-shadow: 0 0 0 0 rgba(110,168,255,0); }
+    }
+    footer { color: var(--muted); font-size: 12px; padding: 8px 28px;
+      border-top: 1px solid var(--border); display:flex; justify-content: space-between; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo"></div>
+    <div>
+      <h1>Aegis Research</h1>
+      <div class="sub">Multi-agent research &amp; insight report generator · Planner · Researcher · Critic · Writer · Security</div>
+    </div>
+    <div style="flex:1"></div>
+    <span class="pill" id="model-pill">model: …</span>
+  </header>
+
+  <main>
+    <section class="panel">
+      <h2>Research topic</h2>
+      <textarea id="q" placeholder="e.g., How are AI agents being used in financial fraud detection in 2024-2025? What are the main risks?"></textarea>
+      <div class="row" style="margin-top: 10px;">
+        <button id="go">Run research</button>
+        <span id="status" class="status-pending">idle</span>
+      </div>
+      <div class="examples" id="examples"></div>
+
+      <h2>Agent trace</h2>
+      <div id="events" class="events"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Final report</h2>
+      <div id="report" class="report" style="display:none"></div>
+      <div id="report-placeholder" style="color: var(--muted)">
+        Run a topic on the left. Events will stream here in real time, and the
+        final markdown report will render in this panel.
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <span>Aegis Research · open-source reference implementation</span>
+    <span id="budget"></span>
+  </footer>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    let currentReport = null;
+    const examples = [
+      "How are AI agents being used in financial fraud detection in 2024-2025, and what are the main risks?",
+      "Compare LangGraph, CrewAI, and AutoGen for production multi-agent systems.",
+      "Summarize prompt-injection mitigation techniques with tradeoffs.",
+      "What regulatory frameworks apply to autonomous agents handling PII?"
+    ];
+
+    const exEl = $("examples");
+    examples.forEach(e => {
+      const c = document.createElement("span");
+      c.className = "chip"; c.textContent = e.slice(0, 72) + (e.length > 72 ? "…" : "");
+      c.title = e;
+      c.onclick = () => { $("q").value = e; };
+      exEl.appendChild(c);
+    });
+
+    fetch("/api/config").then(r => r.json()).then(cfg => {
+      $("model-pill").textContent = cfg.llm_configured
+        ? `model: ${cfg.model}`
+        : "model: (LLM not configured)";
+      $("budget").textContent =
+        `limits: ${cfg.max_subquestions} sub-questions · ${cfg.max_tool_calls} tool calls · ${cfg.max_critique_loops} critique loops`;
+    });
+
+    function renderMarkdown(md) {
+      // Minimal markdown -> HTML (headings, bullets, bold, inline code, links).
+      let html = md
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+      html = html
+        .replace(/^### (.+)$/gm, "<h3>$1</h3>")
+        .replace(/^## (.+)$/gm, "<h2>$1</h2>")
+        .replace(/^# (.+)$/gm, "<h1>$1</h1>")
+        .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+        .replace(/\*(.+?)\*/g, "<em>$1</em>")
+        .replace(/`([^`]+)`/g, "<code>$1</code>");
+
+      // Auto-link bare URLs (the LLM sometimes omits the [text](url) form).
+      html = html.replace(
+        /(^|[\s(])(https?:\/\/[^\s<>)"']+)/g,
+        (_, pre, url) => `${pre}<a href="${url}" target="_blank" rel="noopener">${url}</a>`
+      );
+      html = html.replace(/\[(.+?)\]\((.+?)\)/g,
+        '<a href="$2" target="_blank" rel="noopener">$1</a>');
+
+      // Bulleted lists: lines starting with "- " or "* ".
+      html = html.replace(/^\s*[-*] (.+)$/gm, '<li class="b">$1</li>');
+      // Numbered lists: lines starting with "1. ", "2. ", etc. We also split
+      // numbered items that the model sometimes runs onto one line.
+      html = html.replace(/(^|\s)(\d{1,3})\.\s+(?=\S)/g, (_, pre, n) =>
+        (pre === "" || pre === "\n" ? "" : "\n") + `${n}. `);
+      html = html.replace(/^\s*\d{1,3}\.\s+(.+)$/gm, '<li class="n">$1</li>');
+
+      html = html.replace(/(<li class="b">[\s\S]+?<\/li>)/g, "<ul>$1</ul>")
+                 .replace(/<\/ul>\s*<ul>/g, "")
+                 .replace(/(<li class="n">[\s\S]+?<\/li>)/g, "<ol>$1</ol>")
+                 .replace(/<\/ol>\s*<ol>/g, "");
+
+      html = html.split(/\n{2,}/).map(p =>
+        /^<(h\d|ul|ol|pre|blockquote)/.test(p) ? p : `<p>${p.replace(/\n/g,"<br/>")}</p>`
+      ).join("\n");
+      return html;
+    }
+
+    function appendEvent(ev) {
+      const d = document.createElement("div");
+      d.className = `event ${ev.kind}`;
+      const data = ev.data ? JSON.stringify(ev.data, null, 0).slice(0, 400) : "";
+      d.innerHTML = `
+        <div class="kind">${ev.kind}</div>
+        <div class="agent">${ev.agent || "-"}</div>
+        <div>${ev.message || ""}${data ? `<pre>${data}</pre>` : ""}</div>`;
+      $("events").appendChild(d);
+      d.scrollIntoView({behavior: "smooth", block: "end"});
+    }
+
+    function setStatus(s) {
+      const el = $("status");
+      el.className = `status-${s}`;
+      el.innerHTML = (s === "running" ? '<span class="spinner"></span>' : "") + s;
+    }
+
+    async function run() {
+      const q = $("q").value.trim();
+      if (!q) return;
+      $("go").disabled = true;
+      $("events").innerHTML = "";
+      $("report").style.display = "none";
+      $("report-placeholder").style.display = "block";
+      setStatus("running");
+
+      let res;
+      try {
+        res = await fetch("/api/research", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({query: q})
+        });
+      } catch (e) {
+        setStatus("error"); $("go").disabled = false; return;
+      }
+      if (!res.ok) { setStatus("error"); $("go").disabled = false; return; }
+      const {request_id} = await res.json();
+
+      const es = new EventSource(`/api/stream/${request_id}`);
+      es.onmessage = (m) => {
+        const ev = JSON.parse(m.data);
+        appendEvent(ev);
+        if (ev.kind === "final") {
+          // Only the API-layer terminal event carries a report or an error.
+          // Any other "final" event (e.g. an accidental duplicate) is ignored
+          // so it can't prematurely close the stream or clear the pane.
+          const hasReport = !!(ev.data && ev.data.report && ev.data.report.markdown);
+          const hasError = !!(ev.data && ev.data.error);
+          if (!hasReport && !hasError) return;
+
+          setStatus(ev.data.status || "completed");
+          es.close();
+          $("go").disabled = false;
+
+          if (hasReport) {
+            currentReport = ev.data.report;
+            $("report").style.display = "block";
+            $("report-placeholder").style.display = "none";
+            $("report").innerHTML =
+              `<div class="report-toolbar">
+                 <button class="ghost" id="copy-md">Copy markdown</button>
+                 <button class="ghost" id="dl-md">Download .md</button>
+               </div>` +
+              renderMarkdown(ev.data.report.markdown);
+            document.getElementById("copy-md").onclick = () =>
+              navigator.clipboard.writeText(currentReport.markdown);
+            document.getElementById("dl-md").onclick = () => {
+              const blob = new Blob([currentReport.markdown], {type: "text/markdown"});
+              const a = document.createElement("a");
+              a.href = URL.createObjectURL(blob);
+              a.download = (currentReport.title || "report").replace(/[^a-z0-9]+/gi, "_") + ".md";
+              a.click();
+            };
+          } else {
+            $("report").style.display = "block";
+            $("report-placeholder").style.display = "none";
+            $("report").innerHTML =
+              `<h2 style="color: var(--bad)">${ev.data.status || "error"}</h2>` +
+              `<p>${(ev.data.error || "").replace(/&/g,"&amp;").replace(/</g,"&lt;")}</p>` +
+              `<p style="color: var(--muted); font-size:12px">See the agent trace on the left for details.</p>`;
+          }
+        }
+      };
+      es.onerror = () => { es.close(); setStatus("error"); $("go").disabled = false; };
+    }
+
+    $("go").onclick = run;
+    $("q").addEventListener("keydown", (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") run();
+    });
+  </script>
+</body>
+</html>
