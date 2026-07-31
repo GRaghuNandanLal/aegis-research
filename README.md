@@ -39,7 +39,8 @@ diagrams are in [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
 ```bash
 git clone <this-repo>
-cd wipro
+cd aegis-research
+
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
