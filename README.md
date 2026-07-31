@@ -107,7 +107,7 @@ whatever the platform provides.
 ## Project layout
 
 ```
-wipro/
+aegis-research/
 ├── app/
 │   ├── main.py              FastAPI app (static UI + REST + SSE)
 │   ├── orchestrator.py      State-machine orchestrator
