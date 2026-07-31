@@ -5,7 +5,7 @@ security guardrails. Five specialized agents (Security, Planner, Researcher,
 Critic, Writer) collaborate behind a deterministic orchestrator to turn a
 one-line topic into a cited markdown brief, streamed live to the browser.
 
-Built for the **Wipro Junior FDE pre-screening assignment** (April 2026).
+Built on (April 2026).
 The full design write-up is in [`REPORT.md`](REPORT.md); the architecture
 diagrams are in [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
